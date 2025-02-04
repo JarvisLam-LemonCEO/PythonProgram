@@ -1,261 +1,175 @@
-
-import pygame
-import sys
-import copy
+import tkinter as tk
 import random
-import time
 
-pygame.init()
-
-width = 500
-height = 500
-scale = 10
-score = 0
-
-food_x = 10
-food_y = 10
-
-display = pygame.display.set_mode((width, height))
-pygame.display.set_caption("Snake Game")
-clock = pygame.time.Clock()
-
-background = (23, 32, 42)
-snake_colour = (236, 240, 241)
-food_colour = (148, 49, 38)
-snake_head = (247, 220, 111)
-
-
-# ----------- Snake Class ----------------
-# self.history[0][0] is the location of the head of the snake
+# Constants
+GAME_WIDTH = 700
+GAME_HEIGHT = 700
+SPEED = 100  # Milliseconds between moves
+SPACE_SIZE = 50  # Size of each segment of the snake
+BODY_PARTS = 3  # Initial number of segments
+SNAKE_COLOR = "#00FF00"
+FOOD_COLOR = "#FF0000"
+BACKGROUND_COLOR = "#000000"
 
 class Snake:
-    def __init__(self, x_start, y_start):
-        self.x = x_start
-        self.y = y_start
-        self.w = 10
-        self.h = 10
-        self.x_dir = 1
-        self.y_dir = 0
-        self.history = [[self.x, self.y]]
-        self.length = 1
+    def __init__(self):
+        self.body_size = BODY_PARTS
+        self.coordinates = []
+        self.squares = []
 
-    def reset(self):
-        self.x = width/2-scale
-        self.y = height/2-scale
-        self.w = 10
-        self.h = 10
-        self.x_dir = 1
-        self.y_dir = 0
-        self.history = [[self.x, self.y]]
-        self.length = 1
-    
-    #function to show the body of snake
-    def show(self):
-        for i in range(self.length):
-            if not i == 0:
-                pygame.draw.rect(display, snake_colour, (self.history[i][0], self.history[i][1], self.w, self.h))
-            else:
-                pygame.draw.rect(display, snake_head, (self.history[i][0], self.history[i][1], self.w, self.h))
+        for i in range(0, BODY_PARTS):
+            self.coordinates.append([0, 0])
 
+        for x, y in self.coordinates:
+            square = canvas.create_rectangle(x, y, x + SPACE_SIZE, y + SPACE_SIZE, fill=SNAKE_COLOR, tag="snake")
+            self.squares.append(square)
 
-    def check_eaten(self):
-        if abs(self.history[0][0] - food_x) < scale and abs(self.history[0][1] - food_y) < scale:
+class Food:
+    def __init__(self):
+        x = random.randint(0, (GAME_WIDTH // SPACE_SIZE) - 1) * SPACE_SIZE
+        y = random.randint(0, (GAME_HEIGHT // SPACE_SIZE) - 1) * SPACE_SIZE
+
+        self.coordinates = [x, y]
+
+        canvas.create_oval(x, y, x + SPACE_SIZE, y + SPACE_SIZE, fill=FOOD_COLOR, tag="food")
+
+def next_turn(snake, food):
+    x, y = snake.coordinates[0]
+
+    if direction == "up":
+        y -= SPACE_SIZE
+    elif direction == "down":
+        y += SPACE_SIZE
+    elif direction == "left":
+        x -= SPACE_SIZE
+    elif direction == "right":
+        x += SPACE_SIZE
+
+    snake.coordinates.insert(0, (x, y))
+    square = canvas.create_rectangle(x, y, x + SPACE_SIZE, y + SPACE_SIZE, fill=SNAKE_COLOR)
+    snake.squares.insert(0, square)
+
+    if x == food.coordinates[0] and y == food.coordinates[1]:
+        global score
+        score += 1
+        label.config(text="Score: {}".format(score))
+        canvas.delete("food")
+        food = Food()
+    else:
+        del snake.coordinates[-1]
+        canvas.delete(snake.squares[-1])
+        del snake.squares[-1]
+
+    if check_collisions(snake):
+        game_over()
+    else:
+        root.after(SPEED, next_turn, snake, food)
+
+def change_direction(new_direction):
+    global direction
+
+    if new_direction == 'left':
+        if direction != 'right':
+            direction = new_direction
+    elif new_direction == 'right':
+        if direction != 'left':
+            direction = new_direction
+    elif new_direction == 'up':
+        if direction != 'down':
+            direction = new_direction
+    elif new_direction == 'down':
+        if direction != 'up':
+            direction = new_direction
+
+def check_collisions(snake):
+    x, y = snake.coordinates[0]
+
+    if x < 0 or x >= GAME_WIDTH:
+        return True
+    elif y < 0 or y >= GAME_HEIGHT:
+        return True
+
+    for body_part in snake.coordinates[1:]:
+        if x == body_part[0] and y == body_part[1]:
             return True
 
-    def grow(self):
-        self.length += 1
-        self.history.append(self.history[self.length-2])
+    return False
 
-    def death(self):
-        i = self.length - 1
-        while i > 0:
-            if abs(self.history[0][0] - self.history[i][0]) < self.w and abs(self.history[0][1] - self.history[i][1]) < self.h and self.length > 2:
-                return True
-            i -= 1
+def create_rounded_button(canvas, x, y, width, height, radius, text, command):
+    # Create a rounded rectangle
+    points = [
+        x + radius, y,
+        x + width - radius, y,
+        x + width, y,
+        x + width, y + radius,
+        x + width, y + height - radius,
+        x + width, y + height,
+        x + width - radius, y + height,
+        x + radius, y + height,
+        x, y + height,
+        x, y + height - radius,
+        x, y + radius,
+        x, y,
+    ]
+    canvas.create_polygon(points, smooth=True, fill="lightgray", outline="black")
 
-    def update(self):
-        i = self.length - 1
-        while i > 0:
-            self.history[i] = copy.deepcopy(self.history[i-1])
-            i -= 1
-        self.history[0][0] += self.x_dir*scale
-        self.history[0][1] += self.y_dir*scale
-    
-    def autoplay(self):
+    # Create the button text
+    canvas.create_text(x + width / 2, y + height / 2, text=text, font=('consolas', 20))
 
-        if abs(food_x-self.history[0][0]) < 10 and abs(food_y-self.history[0][1]) < 10:
-            # if self.check_eaten():
-            #     food.new_location()
-            #     score += 1
-            #     self.grow()
-            print("")
-        elif abs(food_x-self.history[0][0]) < 10:
-            
-            # if self.y_dir==1 or self.y_dir==-1:
-            #     self.y_dir=0
-            #     self.x_dir=1
-            if self.x_dir==1 or self.x_dir==-1:
-                if food_y>self.history[0][1]:
-                    self.y_dir=1
-                else:
-                    self.y_dir=-1
-                self.x_dir=0
-        elif abs(food_y-self.history[0][1]) < 10 :
-            
-            # if self.x_dir==1 or self.x_dir==-1:
-            #     self.x_dir=0
-            #     self.y_dir=1
-            if self.y_dir==1 or self.y_dir==-1:
-                self.y_dir=0
-                if food_x>self.history[0][0]:
-                    self.x_dir=1
-                else:
-                    self.x_dir=-1
+    # Bind the click event to the button
+    def on_click(event):
+        if x <= event.x <= x + width and y <= event.y <= y + height:
+            command()
+
+    canvas.bind("<Button-1>", on_click)
 
 
-        elif food_x-self.history[0][0] >= 10  and food_y-self.history[0][1] >= 10:
-            
-            if self.x_dir==-1:
-                self.y_dir=1
-                self.x_dir=0
-            elif self.y_dir==-1:
-                self.y_dir=0
-                self.x_dir=1
-        elif self.history[0][0]-food_x >= 10  and food_y-self.history[0][1] >= 10:
-            
-            if self.x_dir==1:
-                self.y_dir=1
-                self.x_dir=0
-            elif self.y_dir==1:
-                self.y_dir=0
-                self.x_dir=-1
-        elif self.history[0][0]-food_x >= 10  and self.history[0][1]-food_y >= 10:
-            
-            if self.x_dir==1:
-                self.y_dir=-1
-                self.x_dir=0
-            elif self.y_dir==1:
-                self.y_dir=0
-                self.x_dir=-1
+def game_over():
+    canvas.delete(tk.ALL)
+    canvas.create_text(canvas.winfo_width() / 2, canvas.winfo_height() / 2 - 50,
+                       font=('consolas', 70), text="GAME OVER", fill="red", tag="gameover")
+    play_again_button = tk.Button(root, text="Play Again", command=play_again, font=('consolas', 20))
+    quit_button = tk.Button(root, text="Quit", command=root.quit, font=('consolas', 20))
+    canvas.create_window(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50, window=play_again_button)
+    canvas.create_window(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 100, window=quit_button)
 
-        elif food_x-self.history[0][0] >= 10  and self.history[0][1]-food_y >= 10:
-            
-            if self.x_dir==-1:
-                self.y_dir=-1
-                self.x_dir=0
-            elif self.y_dir==1:
-                self.y_dir=0
-                self.x_dir=1
-        
-        self.update()
-        
-        
-        
+def play_again():
+    global snake, food, direction, score
 
-        
-
-
-
-# ----------- Food Class --------------
-class Food:
-    def new_location(self):
-        global food_x, food_y
-        food_x = random.randrange(1, width/scale-1)*scale
-        food_y = random.randrange(1, height/scale-1)*scale
-
-    def show(self):
-        pygame.draw.rect(display, food_colour, (food_x, food_y, scale, scale))
-
-
-def show_score():
-    font = pygame.font.SysFont("Copperplate Gothic Bold", 20)
-    text = font.render("Score: " + str(score), True, snake_colour)
-    display.blit(text, (scale, scale))
-
-
-# ----------- Main Game Loop -------------
-def gameLoop():
-    loop = True
-
-    global score
-
-    snake = Snake(width/2, height/2) #starting from mid of grid
+    canvas.delete(tk.ALL)
+    direction = 'down'
+    score = 0
+    label.config(text="Score: {}".format(score))
+    snake = Snake()
     food = Food()
-    food.new_location()
-    ap=False
+    next_turn(snake, food)
 
-    while loop:
+# Initialize the game window
+root = tk.Tk()
+root.title("Snake Game")
+root.resizable(False, False)
 
-        display.fill(background)
-        snake.show()
-        food.show()
-        show_score()
+score = 0
+direction = 'down'
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+label = tk.Label(root, text="Score: {}".format(score), font=('consolas', 40))
+label.pack()
 
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
-                    pygame.quit()
-                    sys.exit()
-                if event.key==pygame.K_SPACE: #autoplay start
-                    ap=True
-                if event.key==pygame.K_TAB: #autoplay end
-                    ap=False
-                else:
-                    if snake.y_dir == 0:
-                        if event.key == pygame.K_UP:
-                            snake.x_dir = 0
-                            snake.y_dir = -1
-                        if event.key == pygame.K_DOWN:
-                            snake.x_dir = 0
-                            snake.y_dir = 1
+canvas = tk.Canvas(root, bg=BACKGROUND_COLOR, height=GAME_HEIGHT, width=GAME_WIDTH)
+canvas.pack()
 
-                    if snake.x_dir == 0:
-                        if event.key == pygame.K_LEFT:
-                            snake.x_dir = -1
-                            snake.y_dir = 0
-                        if event.key == pygame.K_RIGHT:
-                            snake.x_dir = 1
-                            snake.y_dir = 0
+root.update()
 
-        
-        if ap:
-            snake.autoplay()
-        else:
-            snake.update()
-        
+root.bind('<Left>', lambda event: change_direction('left'))
+root.bind('<Right>', lambda event: change_direction('right'))
+root.bind('<Up>', lambda event: change_direction('up'))
+root.bind('<Down>', lambda event: change_direction('down'))
 
-        if snake.check_eaten():
-            food.new_location()
-            score += 1
-            snake.grow()
+snake = Snake()
+food = Food()
+
+next_turn(snake, food)
+
+root.mainloop()
 
 
-        if snake.death():
-            score = 0
-            font = pygame.font.SysFont("Copperplate Gothic Bold", 50)
-            text = font.render("Game Over!", True, snake_colour)
-            display.blit(text, (width/2-50, height/2))
-            pygame.display.update()
-            time.sleep(3)
-            snake.reset()
-
-        
-        #updating the values if snake goes out of board
-        if snake.history[0][0] > width:
-            snake.history[0][0] = 0
-        if snake.history[0][0] < 0:
-            snake.history[0][0] = width
-
-        if snake.history[0][1] > height:
-            snake.history[0][1] = 0
-        if snake.history[0][1] < 0:
-            snake.history[0][1] = height
-
-        pygame.display.update()
-        clock.tick(10) #at most 10 frames should pass in 1 sec, it is used to control the speed of snake 
-
-gameLoop()
